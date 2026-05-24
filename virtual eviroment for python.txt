@@ -1,0 +1,9 @@
+you have to use this command to use python dependaties (aka pip)
+
+source myenv/bin/activate
+
+source venv/bin/activate
+python3 main.py
+
+
+python3 -m venv venv

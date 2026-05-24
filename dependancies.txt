@@ -1,0 +1,12 @@
+pip install pynput pyautogui
+That's genuinely all you need. Both are pure Python, no system libs required on Linux... except one thing 
+— pyautogui on Linux needs a display backend:
+
+And if you're on Wayland (Pop!_OS 22.04+ defaults to it), pynput and pyautogui both need X11 compatibility layer:
+bash# check if you're on Wayland or X11
+echo $XDG_SESSION_TYPE
+
+If it says wayland, run the app like this:
+bashDISPLAY=:0 python3 main.py
+
+Or force X11 session in Pop!_OS — on the login screen, click the gear icon bottom-right and pick GNOME on Xorg.
