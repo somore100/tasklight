@@ -1,0 +1,144 @@
+name: Build TaskLight
+
+on:
+  push:
+    tags:
+      - 'v*'
+  workflow_dispatch:
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install system deps
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y python3-tk libxtst-dev libx11-dev \
+            libxkbcommon-x11-0 libfuse2 fuse wget
+
+      - name: Install Python deps
+        run: |
+          pip install pyinstaller pynput pyautogui python-xlib \
+            psutil Pillow mss
+
+      - name: Build with PyInstaller
+        run: pyinstaller tasklight.spec --clean --noconfirm
+
+      - name: Download appimagetool
+        run: |
+          wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
+          chmod +x appimagetool-x86_64.AppImage
+
+      - name: Build AppImage
+        run: |
+          mkdir -p AppDir/usr/bin AppDir/usr/share/applications \
+            AppDir/usr/share/icons/hicolor/256x256/apps
+          cp dist/tasklight AppDir/usr/bin/tasklight
+
+          cat > AppDir/tasklight.desktop << 'DESKTOP'
+          [Desktop Entry]
+          Name=TaskLight
+          Comment=Macro recorder, humanizer and system tools
+          Exec=tasklight
+          Icon=tasklight
+          Type=Application
+          Categories=Utility;
+          DESKTOP
+
+          cp AppDir/tasklight.desktop AppDir/usr/share/applications/tasklight.desktop
+
+          python3 -c "
+          try:
+              from PIL import Image, ImageDraw
+              img = Image.new('RGBA', (256,256), (22,22,22,255))
+              d = ImageDraw.Draw(img)
+              d.ellipse([20,20,236,236], fill=(74,143,196,255))
+              d.text((72,88), 'TL', fill='white')
+              img.save('icon.png')
+          except: pass
+          " || true
+
+          [ -f icon.png ] && \
+            cp icon.png AppDir/tasklight.png && \
+            cp icon.png AppDir/usr/share/icons/hicolor/256x256/apps/tasklight.png
+
+          cat > AppDir/AppRun << 'APPRUN'
+          #!/bin/bash
+          HERE="$(dirname "$(readlink -f "$0")")"
+          exec "$HERE/usr/bin/tasklight" "$@"
+          APPRUN
+          chmod +x AppDir/AppRun
+
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir \
+            TaskLight-x86_64.AppImage
+
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskLight-Linux
+          path: TaskLight-x86_64.AppImage
+
+  build-windows:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+
+      - name: Install Python deps
+        run: |
+          pip install pyinstaller pynput pyautogui psutil Pillow
+
+      - name: Build with PyInstaller
+        run: pyinstaller tasklight_windows.spec --clean --noconfirm
+
+      - name: Upload exe
+        uses: actions/upload-artifact@v4
+        with:
+          name: TaskLight-Windows
+          path: dist/TaskLight.exe
+
+  release:
+    needs: [build-linux, build-windows]
+    runs-on: ubuntu-latest
+    if: startsWith(github.ref, 'refs/tags/')
+    steps:
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TaskLight-Linux
+
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TaskLight-Windows
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            TaskLight-x86_64.AppImage
+            TaskLight.exe
+          body: |
+            ## TaskLight ${{ github.ref_name }}
+
+            **Linux**: `TaskLight-x86_64.AppImage` — run on any x86_64 Linux
+            ```bash
+            chmod +x TaskLight-x86_64.AppImage
+            ./TaskLight-x86_64.AppImage
+            ```
+
+            **Windows**: `TaskLight.exe` — double-click, no install needed.
+            If blocked: More info → Run anyway.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
