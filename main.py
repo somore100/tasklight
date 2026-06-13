@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading, os, sys
-import settings, state, recorder, player, humanizer, presets, network, fps, duplicator, sysmon, injector
+import settings, state, recorder, player, humanizer, presets, network, fps, duplicator, sysmon, injector, session_switch
 from network import net_state as _ns
 from sysmon import sys_state as _ss
 from fps import fps_state as _fs2
@@ -1440,21 +1440,90 @@ Wb(kbb,"Apply keybinds",_apply_kb,pady=4).pack(pady=(6,2),anchor="w")
 Wsep(_inner)
 
 # ══════════════════════════════════════════════════════════════════════════════
-#  WAYLAND BANNER
+#  SESSION MANAGER (X11 / Wayland switcher)
 # ══════════════════════════════════════════════════════════════════════════════
-xdg=os.environ.get("XDG_SESSION_TYPE","").lower()
-if settings.get("wayland_banner") and (xdg=="wayland" or os.environ.get("WAYLAND_DISPLAY")):
-    wf=tk.Frame(_inner,bg=T("bg2"),padx=10,pady=6); _reg(wf,"bg","bg2")
-    wf.pack(fill="x",padx=10,pady=4)
-    tk.Label(wf,text="⚠  Wayland detected — hotkeys only work inside the app window.",
-             bg=T("bg2"),fg=T("orange"),font=("Helvetica",8,"bold"),
-             anchor="w",wraplength=270,justify="left").pack(fill="x")
-    tk.Label(wf,text="Login screen → gear → GNOME on Xorg  to switch to X11.",
-             bg=T("bg2"),fg=T("fg2"),font=("Helvetica",8),
-             anchor="w",wraplength=270,justify="left").pack(fill="x",pady=(2,0))
-    def _dis(): settings.set("wayland_banner",False); wf.destroy()
-    tk.Button(wf,text="Dismiss",command=_dis,bg=T("bg3"),fg=T("fg2"),
-              relief="flat",font=("Helvetica",8),cursor="hand2").pack(anchor="e",pady=(4,0))
+sec_sess=Section(_inner,"Session Manager  🖥","sec_keybinds")
+sb3=sec_sess.body
+
+_sess_info = session_switch.get_switch_info()
+_curr_sess = _sess_info["session"]
+_curr_dm   = _sess_info["display_manager"]
+
+# current status row
+st_row=Wf(sb3); st_row.pack(fill="x",pady=(0,4))
+sess_col = "orange" if _curr_sess=="wayland" else "green" if _curr_sess=="x11" else "fg2"
+tk.Label(st_row,text="Session:",bg=T("bg"),fg=T("fg2"),font=("Helvetica",9)).pack(side="left")
+tk.Label(st_row,text=f"  {_curr_sess.upper()}",bg=T("bg"),fg=T(sess_col),
+         font=("Helvetica",9,"bold")).pack(side="left")
+tk.Label(st_row,text=f"   DM: {_curr_dm}",bg=T("bg"),fg=T("fg3"),
+         font=("Helvetica",8)).pack(side="left")
+
+if _curr_sess == "wayland":
+    warn=tk.Label(sb3,
+         text="⚠  Wayland detected — hotkeys won't work outside the app window.\n"
+              "Switch to X11 for full hotkey and input injection support.",
+         bg=T("bg"),fg=T("orange"),font=("Helvetica",8),
+         anchor="w",wraplength=270,justify="left")
+    warn.pack(fill="x",pady=(0,6))
+
+# commands display
+def _make_cmd_box(parent, title, cmds):
+    tf=tk.Frame(parent,bg=T("bg2"),highlightthickness=1,highlightbackground=T("bg3"))
+    _reg(tf,"bg","bg2"); _reg(tf,"highlightbackground","bg3")
+    tf.pack(fill="x",pady=3)
+    tk.Label(tf,text=title,bg=T("bg2"),fg=T("accent"),
+             font=("Helvetica",8,"bold"),anchor="w").pack(fill="x",padx=6,pady=(4,2))
+    for cmd in cmds:
+        is_cmd = not cmd.startswith("#")
+        tk.Label(tf,text=cmd,
+                 bg=T("bg2"),fg=(T("fg") if is_cmd else T("fg3")),
+                 font=("Courier" if is_cmd else "Helvetica",8),
+                 anchor="w",wraplength=260,justify="left").pack(fill="x",padx=6)
+    return tf
+
+if _sess_info["to_x11_cmds"]:
+    _make_cmd_box(sb3,"Commands to switch to X11:",_sess_info["to_x11_cmds"])
+
+if _sess_info["to_wayland_cmds"]:
+    _make_cmd_box(sb3,"Commands to switch back to Wayland:",_sess_info["to_wayland_cmds"])
+
+# notes
+for note in _sess_info["notes"]:
+    tk.Label(sb3,text=f"ℹ  {note}",bg=T("bg"),fg=T("fg3"),
+             font=("Helvetica",8),anchor="w",wraplength=270,justify="left"
+             ).pack(fill="x",pady=1)
+
+# action buttons + result label
+sess_result=tk.Label(sb3,text="",bg=T("bg"),fg=T("green"),
+                     font=("Helvetica",8),anchor="w",wraplength=270)
+sess_result.pack(fill="x",pady=(4,0))
+
+btn_row3=Wf(sb3); btn_row3.pack(fill="x",pady=(4,2))
+
+def _run_to_x11():
+    sess_result.config(text="Running… (pkexec will ask for password)",fg=T("orange"))
+    btn_row3.update()
+    ok,msg=session_switch.run_switch_to_x11(_curr_dm)
+    sess_result.config(text=msg,fg=(T("green") if ok else T("red")))
+
+def _run_to_wayland():
+    sess_result.config(text="Running…",fg=T("orange"))
+    btn_row3.update()
+    ok,msg=session_switch.run_switch_to_wayland(_curr_dm)
+    sess_result.config(text=msg,fg=(T("green") if ok else T("red")))
+
+if _sess_info["can_switch"] and _curr_dm == "gdm":
+    Wb(btn_row3,"→ Switch to X11",_run_to_x11,
+       pady=4,padx=6).pack(side="left",padx=(0,6))
+    Wb(btn_row3,"→ Switch to Wayland",_run_to_wayland,
+       pady=4,padx=6).pack(side="left")
+else:
+    tk.Label(btn_row3,
+             text="Use the gear icon at login screen to switch session manually.",
+             bg=T("bg"),fg=T("fg3"),font=("Helvetica",8),
+             wraplength=270,justify="left").pack(side="left")
+
+Wsep(_inner)
 
 # ── quit button ───────────────────────────────────────────────────────────────
 Wsep(_inner)

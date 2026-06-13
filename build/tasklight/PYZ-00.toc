@@ -1452,6 +1452,10 @@
   ('selectors',
    '/home/domore100/.pyenv/versions/3.11.9/lib/python3.11/selectors.py',
    'PYMODULE'),
+  ('session_switch',
+   '/home/domore100/Documents/Hot/exe '
+   'files/tasklight/V2/sourse/session_switch.py',
+   'PYMODULE'),
   ('settings',
    '/home/domore100/Documents/Hot/exe files/tasklight/V2/sourse/settings.py',
    'PYMODULE'),

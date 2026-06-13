@@ -18,7 +18,7 @@ a = Analysis(
         'pyautogui', 'tkinter', 'tkinter.ttk',
         'tkinter.filedialog', 'tkinter.messagebox',
         'psutil', 'PIL', 'PIL.ImageGrab',
-        'mss', 'evdev',
+        'mss', 'evdev', 'session_switch', 'evdev', 'session_switch',
     ],
     hookspath=[],
     runtime_hooks=[],
