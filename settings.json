@@ -54,7 +54,7 @@
   "sysmon_show_cores": false,
   "theme": "light",
   "layout": "horizontal",
-  "mini_mode": true,
+  "mini_mode": false,
   "always_on_top": true,
   "failsafe": false,
   "wayland_banner": true,

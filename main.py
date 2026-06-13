@@ -2,7 +2,7 @@
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
 import threading, os, sys
-import settings, state, recorder, player, humanizer, presets, network, fps, duplicator, sysmon
+import settings, state, recorder, player, humanizer, presets, network, fps, duplicator, sysmon, injector
 from network import net_state as _ns
 from sysmon import sys_state as _ss
 from fps import fps_state as _fs2
@@ -11,6 +11,7 @@ from pynput import keyboard as kb
 
 # ── boot ──────────────────────────────────────────────────────────────────────
 settings.load()
+injector.setup()   # detect evdev/uinput or fall back to pyautogui
 
 # ── theme ─────────────────────────────────────────────────────────────────────
 THEMES = {
@@ -77,6 +78,7 @@ def emergency_quit():
     state.is_recording=state.is_playing=False
     humanizer.stop_jitter_solo(); humanizer.stop_clicker_solo()
     duplicator.stop_solo(); fps.stop_monitor(); sysmon.stop()
+    injector.close()
     network.stop_all(_iface_var.get() if '_iface_var' in dir() else "")
     settings.save()
     try: root.destroy()

@@ -1,5 +1,14 @@
 from pynput import mouse, keyboard
-import time, state
+import time, state, settings
+
+def _is_hotkey(key_name):
+    hks = [
+        settings.get("hk_record"), settings.get("hk_play"),
+        settings.get("hk_stop"),   settings.get("hk_quit"),
+        settings.get("hk_jitter_solo"), settings.get("hk_clicker_solo"),
+        settings.get("hk_net_blocker"), settings.get("hk_dup_solo"),
+    ]
+    return str(key_name).lower().strip() in [str(h).lower().strip() for h in hks if h]
 
 def start_recording():
     state.events       = []
@@ -13,13 +22,22 @@ def start_recording():
         if state.is_recording:
             state.events.append(("click", x, y, button.name, pressed, time.time()))
 
-    def on_key(key):
+    def on_key_press(key):
         if state.is_recording:
-            try:    state.events.append(("key", key.char, time.time()))
-            except: state.events.append(("key", key.name, time.time()))
+            try:    name = key.char
+            except: name = key.name
+            if _is_hotkey(name): return
+            state.events.append(("key_down", name, time.time()))
+
+    def on_key_release(key):
+        if state.is_recording:
+            try:    name = key.char
+            except: name = key.name
+            if _is_hotkey(name): return
+            state.events.append(("key_up", name, time.time()))
 
     ml = mouse.Listener(on_move=on_move, on_click=on_click)
-    kl = keyboard.Listener(on_press=on_key)
+    kl = keyboard.Listener(on_press=on_key_press, on_release=on_key_release)
     ml.start(); kl.start()
     return ml, kl
 

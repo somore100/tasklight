@@ -1,5 +1,5 @@
 import time, random, threading
-import pyautogui, state, settings
+import pyautogui, state, settings, injector
 
 pyautogui.PAUSE = 0
 
@@ -51,13 +51,11 @@ def addon_click(x, y, button="left", use_jitter=True):
     if random.random() < float(settings.get("clicker_burst_chance")):
         time.sleep(random.uniform(float(settings.get("clicker_burst_min")),
                                   float(settings.get("clicker_burst_max"))))
-    pyautogui.FAILSAFE = _fs()
     try:
-        btn = pyautogui.RIGHT if button == "right" else pyautogui.LEFT
-        pyautogui.mouseDown(x=int(x), y=int(y), button=btn)
+        injector.mouse_down(int(x), int(y), button)
         time.sleep(hold)
-        pyautogui.mouseUp(x=int(x), y=int(y), button=btn)
-    except pyautogui.FailSafeException: pass
+        injector.mouse_up(int(x), int(y), button)
+    except Exception: pass
     return hold
 
 # ── jitter solo ───────────────────────────────────────────────────────────────
