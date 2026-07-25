@@ -79,7 +79,11 @@ def emergency_quit():
     humanizer.stop_jitter_solo(); humanizer.stop_clicker_solo()
     duplicator.stop_solo(); fps.stop_monitor(); sysmon.stop()
     injector.close()
-    network.stop_all(_iface_var.get() if '_iface_var' in dir() else "")
+    # always stop network features on exit
+    iface = ""
+    try: iface = _iface_var.get()
+    except: pass
+    network.stop_all(iface)
     settings.save()
     try: root.destroy()
     except: pass
@@ -988,6 +992,37 @@ def _nr2(p,pairs):
         tk.Label(f,text=lbl,bg=T("bg2"),fg=T("fg2"),font=("Helvetica",8)).pack(side="left")
         _ne(f,var,w).pack(side="left",padx=(2,10))
 
+# ── sudo password (cached for session) ───────────────────────────────────────
+pw_row=tk.Frame(_net_rdy,bg=T("bg")); _reg(pw_row,"bg","bg"); pw_row.pack(fill="x",pady=(0,4))
+tk.Label(pw_row,text="sudo password:",bg=T("bg"),fg=T("fg2"),font=("Helvetica",8)).pack(side="left")
+_sudo_pw_var=tk.StringVar(value="")
+_sudo_pw_entry=tk.Entry(pw_row,textvariable=_sudo_pw_var,show="•",width=16,
+                         bg=T("bg2"),fg=T("fg"),insertbackground=T("fg"),
+                         relief="flat",font=("Helvetica",9),
+                         highlightthickness=1,highlightbackground=T("bg3"),
+                         highlightcolor=T("accent"))
+_reg(_sudo_pw_entry,"bg","bg2");_reg(_sudo_pw_entry,"fg","fg")
+_sudo_pw_entry.pack(side="left",padx=(4,6))
+_pw_status=tk.Label(pw_row,text="not set",bg=T("bg"),fg=T("fg3"),font=("Helvetica",8))
+_reg(_pw_status,"bg","bg"); _pw_status.pack(side="left")
+
+def _save_sudo_pw():
+    pw=_sudo_pw_var.get()
+    if pw:
+        network.set_sudo_password(pw)
+        _pw_status.config(text="✓ cached for session",fg=T("green"))
+    else:
+        network.clear_sudo_password()
+        _pw_status.config(text="cleared",fg=T("fg3"))
+
+tk.Button(pw_row,text="Cache",command=_save_sudo_pw,
+          bg=T("bg2"),fg=T("fg"),activebackground=T("bg3"),
+          relief="flat",font=("Helvetica",8),cursor="hand2",padx=6
+          ).pack(side="left")
+
+tk.Label(pw_row,text="(one-time, stays until app closes)",
+         bg=T("bg"),fg=T("fg3"),font=("Helvetica",7)).pack(side="left",padx=(4,0))
+
 # ── Limiter ───────────────────────────────────────────────────────────────────
 lp=_nf(_net_rdy,"Ping Limiter","accent")
 delay_ms_var =tk.StringVar(value="100")
@@ -1024,8 +1059,11 @@ lim_btn.pack(anchor="w",padx=8,pady=(4,8))
 # ── Blocker ───────────────────────────────────────────────────────────────────
 blkp=_nf(_net_rdy,"Packet Blocker","red")
 hk_blk=(settings.get("hk_net_blocker") or "f3").upper()
-tk.Label(blkp,text=f"Drops 100% of outbound traffic. Hotkey: {hk_blk}  Shown in mini mode.",
-         bg=T("bg2"),fg=T("fg3"),font=("Helvetica",8),anchor="w",wraplength=270
+tk.Label(blkp,text=f"⚡ Power tool — drops ALL outbound traffic. Hotkey: {hk_blk}",
+         bg=T("bg2"),fg=T("red"),font=("Helvetica",8,"bold"),anchor="w",wraplength=270
+         ).pack(fill="x",padx=8,pady=(0,1))
+tk.Label(blkp,text="⚠  Blocks internet for ALL apps until stopped. Use carefully!",
+         bg=T("bg2"),fg=T("orange"),font=("Helvetica",7),anchor="w",wraplength=270
          ).pack(fill="x",padx=8)
 blk_ind=tk.Label(blkp,text="⬤ Inactive",bg=T("bg2"),fg=T("fg3"),font=("Helvetica",8),anchor="w")
 _reg(blk_ind,"bg","bg2"); blk_ind.pack(fill="x",padx=8)
@@ -1425,17 +1463,101 @@ _KB_DEFS=[
     ("hk_dup_solo","Click duplicator solo"),
 ]
 _kb_vars={}
+_kb_buttons={}   # key → capture button widget
+_kb_capturing=[None]  # [key being captured] or [None]
+_kb_held_mods=set()
+
+def _kb_on_capture_press(key):
+    """Called by pynput during keybind capture."""
+    from pynput.keyboard import Key
+    name = ""
+    try:
+        if hasattr(key,"char") and key.char: name=key.char.lower()
+        else: name=key.name.lower()
+    except: return
+
+    # track modifiers
+    mods={"ctrl","shift","alt","cmd","super"}
+    if any(m in name for m in mods):
+        _kb_held_mods.add(name.replace("left","").replace("right","").strip("_"))
+        return
+
+    # build combo string
+    parts=sorted(_kb_held_mods)+[name]
+    combo="+".join(parts)
+
+    capturing=_kb_capturing[0]
+    if capturing:
+        _kb_vars[capturing].set(combo)
+        _kb_buttons[capturing].config(text=combo,fg=T("accent"))
+        _kb_capturing[0]=None
+        _kb_held_mods.clear()
+        # stop capture listener
+        return False
+
+def _kb_on_capture_release(key):
+    try:
+        name=""
+        try:
+            if hasattr(key,"char") and key.char: name=key.char.lower()
+            else: name=key.name.lower()
+        except: pass
+        mods={"ctrl","shift","alt","cmd","super"}
+        if any(m in name for m in mods):
+            clean=name.replace("left","").replace("right","").strip("_")
+            _kb_held_mods.discard(clean)
+    except: pass
+
+_kb_capture_listener=None
+
+def _start_capture(key):
+    global _kb_capture_listener
+    if _kb_capturing[0]:   # already capturing another — cancel it
+        prev=_kb_capturing[0]
+        _kb_buttons[prev].config(text=_kb_vars[prev].get() or "...",fg=T("fg2"))
+    _kb_capturing[0]=key
+    _kb_held_mods.clear()
+    _kb_buttons[key].config(text="[ press keys… ]",fg=T("orange"))
+
+    # stop old listener
+    if _kb_capture_listener:
+        try: _kb_capture_listener.stop()
+        except: pass
+
+    from pynput import keyboard as _pkb
+    _kb_capture_listener=_pkb.Listener(
+        on_press=_kb_on_capture_press,
+        on_release=_kb_on_capture_release)
+    _kb_capture_listener.daemon=True
+    _kb_capture_listener.start()
+
+Wl(kbb,"Click a button, then press your desired key or combo:",ck="fg3",sz=8
+   ).pack(fill="x",pady=(0,4))
+
 for key,label in _KB_DEFS:
-    row=Wf(kbb); row.pack(fill="x",pady=1)
-    tk.Label(row,text=label,width=18,anchor="w",bg=T("bg"),fg=T("fg2"),
+    row=Wf(kbb); row.pack(fill="x",pady=2)
+    tk.Label(row,text=label,width=20,anchor="w",bg=T("bg"),fg=T("fg2"),
              font=("Helvetica",9)).pack(side="left")
     var=tk.StringVar(value=settings.get(key))
-    _kb_vars[key]=var; We(row,var,14).pack(side="left",padx=(4,0))
+    _kb_vars[key]=var
+    cur=var.get() or "..."
+    btn=tk.Button(row,text=cur,width=14,
+                  bg=T("bg2"),fg=T("fg2"),activebackground=T("bg3"),
+                  activeforeground=T("fg"),relief="flat",
+                  font=("Helvetica",9),cursor="hand2",anchor="w",padx=6)
+    _reg(btn,"bg","bg2");_reg(btn,"fg","fg2");_reg(btn,"activebackground","bg3")
+    btn.config(command=lambda k=key: _start_capture(k))
+    btn.pack(side="left",padx=(4,0))
+    _kb_buttons[key]=btn
+
 def _apply_kb():
+    if _kb_capturing[0]:   # cancel any active capture
+        _kb_capturing[0]=None
     for k,v in _kb_vars.items():
         val=v.get().strip().lower()
         if val: settings.set(k,val)
     set_status("idle","keybinds saved")
+
 Wb(kbb,"Apply keybinds",_apply_kb,pady=4).pack(pady=(6,2),anchor="w")
 Wsep(_inner)
 

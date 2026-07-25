@@ -1,6 +1,14 @@
 import time, state, settings, humanizer, duplicator, injector
 from duplicator import dup_state
 
+def _sleep(secs):
+    """Interruptible sleep — checks stop_flag every 50ms."""
+    end = time.perf_counter() + secs
+    while time.perf_counter() < end:
+        if state.stop_flag or state.quit_flag: return
+        chunk = min(0.05, end - time.perf_counter())
+        if chunk > 0: time.sleep(chunk)
+
 def play(speed=1.0, loop=1):
     if not state.events: return
     events = list(state.events)
@@ -29,9 +37,12 @@ def play(speed=1.0, loop=1):
 
         for i, event in enumerate(events):
             if state.stop_flag or state.quit_flag: break
+
             delay = (event[-1] - base_time) / speed
             base_time = event[-1]
-            if delay > 0: time.sleep(delay)
+            if delay > 0: _sleep(delay)      # interruptible!
+
+            if state.stop_flag or state.quit_flag: break
 
             kind = event[0]
             try:
@@ -47,21 +58,19 @@ def play(speed=1.0, loop=1):
                     if pressed:
                         btn = button if isinstance(button, str) else "left"
                         if do_jitter: x, y = humanizer.addon_jitter(x, y)
-
                         if do_clicker:
                             now = time.time()
                             gap = humanizer.cps_interval()
                             elapsed = now - last_click_t
-                            if elapsed < gap: time.sleep(gap - elapsed)
+                            if elapsed < gap: _sleep(gap - elapsed)
                             humanizer.addon_click(x, y, button=btn, use_jitter=False)
                             last_click_t = time.time()
                         else:
-                            hold = 0.05
                             injector.mouse_down(x, y, btn)
-                            time.sleep(hold)
+                            _sleep(0.05)
                             injector.mouse_up(x, y, btn)
 
-                        if do_dup:
+                        if do_dup and not (state.stop_flag or state.quit_flag):
                             gap_ms = 80
                             if i + 1 < len(events):
                                 next_t = events[i+1][-1]
@@ -69,7 +78,6 @@ def play(speed=1.0, loop=1):
                             duplicator.addon_duplicate(x, y, button=btn, after_delay_ms=gap_ms)
 
                 elif kind == "key":
-                    # legacy format — single press, short hold
                     _, key, _ = event
                     injector.key_press(key, hold_s=0.05)
 
@@ -84,4 +92,7 @@ def play(speed=1.0, loop=1):
             except Exception:
                 pass
 
+    # release any held keys on stop
+    injector.close()
+    injector.setup()
     state.is_playing = False

@@ -1,5 +1,7 @@
 """
-duplicator.py — Click Duplicator with left/right/both support
+duplicator.py — Click Duplicator
+Fires N extra clicks within the gap after a real click.
+Fixed: guard against overlapping threads at high counts.
 """
 import time, random, threading
 import pyautogui, state, settings
@@ -7,54 +9,60 @@ import pyautogui, state, settings
 pyautogui.PAUSE = 0
 
 class DupState:
-    solo_active = False
-    _listener   = None
+    solo_active  = False
+    _listener    = None
+    _firing      = False   # guard: only one fire thread at a time
 
 dup_state = DupState()
 
 def _fire_extras(x, y, count, gap_ms, mode, use_jitter, button="left"):
-    if count <= 0 or gap_ms <= 0: return
-    gap_s = gap_ms / 1000.0
+    if dup_state._firing: return   # already firing, skip this one
+    dup_state._firing = True
+    try:
+        if count <= 0 or gap_ms <= 0: return
+        count  = min(count, 4)      # hard cap at 4
+        gap_s  = gap_ms / 1000.0
 
-    if mode == "even":
-        delays = [gap_s / (count+1) * (i+1) for i in range(count)]
-    else:
-        delays = sorted(random.uniform(0.01, gap_s*0.9) for _ in range(count))
+        if mode == "even":
+            delays = [gap_s / (count+1) * (i+1) for i in range(count)]
+        else:
+            delays = sorted(random.uniform(0.01, gap_s * 0.85) for _ in range(count))
 
-    last = 0.0
-    for d in delays:
-        wait = d - last
-        if wait > 0: time.sleep(wait)
-        last = d
+        last = 0.0
+        for d in delays:
+            if state.stop_flag or state.quit_flag: break
+            wait = d - last
+            if wait > 0: time.sleep(wait)
+            last = d
 
-        cx, cy = x, y
-        if use_jitter:
+            cx, cy = x, y
+            if use_jitter:
+                try:
+                    import humanizer
+                    cx, cy = humanizer.addon_jitter(x, y)
+                except: pass
+
             try:
-                import humanizer
-                cx, cy = humanizer.addon_jitter(x, y)
-            except: pass
-
-        try:
-            pyautogui.FAILSAFE = settings.get("failsafe")
-            # handle "both" — alternate
-            if button == "both":
-                btn = pyautogui.LEFT if int(time.time()*1000) % 2 == 0 else pyautogui.RIGHT
-            elif button == "right":
-                btn = pyautogui.RIGHT
-            else:
-                btn = pyautogui.LEFT
-            pyautogui.click(int(cx), int(cy), button=btn)
-        except pyautogui.FailSafeException: pass
-        except Exception: pass
+                import injector
+                if button == "both":
+                    btn = "left" if int(time.time()*1000) % 2 == 0 else "right"
+                else:
+                    btn = button
+                injector.mouse_down(int(cx), int(cy), btn)
+                time.sleep(random.uniform(0.02, 0.06))
+                injector.mouse_up(int(cx), int(cy), btn)
+            except Exception: pass
+    finally:
+        dup_state._firing = False
 
 
 def addon_duplicate(x, y, button="left", after_delay_ms=None):
+    if dup_state._firing: return   # don't stack
     count  = int(settings.get("dup_count") or 1)
     gap_ms = float(after_delay_ms or settings.get("dup_gap_ms") or 80)
     mode   = settings.get("dup_mode") or "random"
     jitter = settings.get("dup_use_jitter") or False
     btn    = settings.get("dup_button") or "same"
-    # "same" = match the original click button
     if btn == "same": btn = button
 
     threading.Thread(
@@ -70,13 +78,13 @@ def start_solo():
 
     def on_click(x, y, button, pressed):
         if not dup_state.solo_active: return False
-        if pressed:
+        if pressed and not dup_state._firing:
             count  = int(settings.get("dup_count") or 1)
             gap_ms = float(settings.get("dup_gap_ms") or 80)
             mode   = settings.get("dup_mode") or "random"
             jitter = settings.get("dup_use_jitter") or False
-            btn_setting = settings.get("dup_button") or "same"
-            btn = button.name if btn_setting == "same" else btn_setting
+            btn_s  = settings.get("dup_button") or "same"
+            btn    = button.name if btn_s == "same" else btn_s
             threading.Thread(
                 target=_fire_extras,
                 args=(x, y, count, gap_ms, mode, jitter, btn),
