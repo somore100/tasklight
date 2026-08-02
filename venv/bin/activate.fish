@@ -33,7 +33,7 @@ end
 # Unset irrelevant variables.
 deactivate nondestructive
 
-set -gx VIRTUAL_ENV "/home/domore100/Documents/Hot/exe files/tasklight/V2/sourse/venv"
+set -gx VIRTUAL_ENV "/home/domore100/Documents/Hot/programs/tasklight/V2/sourse/venv"
 
 set -gx _OLD_VIRTUAL_PATH $PATH
 set -gx PATH "$VIRTUAL_ENV/bin" $PATH

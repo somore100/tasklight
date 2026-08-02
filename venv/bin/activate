@@ -35,7 +35,7 @@ deactivate () {
 # unset irrelevant variables
 deactivate nondestructive
 
-VIRTUAL_ENV="/home/domore100/Documents/Hot/exe files/tasklight/V2/sourse/venv"
+VIRTUAL_ENV="/home/domore100/Documents/Hot/programs/tasklight/V2/sourse/venv"
 export VIRTUAL_ENV
 
 _OLD_VIRTUAL_PATH="$PATH"

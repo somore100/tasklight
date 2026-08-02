@@ -33,5 +33,6 @@ exe = EXE(
     name='tasklight',
     debug=False, strip=False, upx=True,
     console=False,
+    icon='logo.png',
     runtime_tmpdir=None,
 )

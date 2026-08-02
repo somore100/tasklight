@@ -7,7 +7,7 @@ a = Analysis(
     ['main.py'],
     pathex=['.'],
     binaries=[],
-    datas=[],
+    datas=[('logo.png', '.')],
     hiddenimports=[
         'pynput.keyboard._win32',
         'pynput.mouse._win32',
@@ -28,5 +28,6 @@ exe = EXE(
     name='TaskLight',
     debug=False, strip=False, upx=True,
     console=False,
+    icon='logo.png',
     # icon='icon.ico',
 )

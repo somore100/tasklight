@@ -73,6 +73,7 @@ is_py311 = sys.version_info >= (3, 11)
 is_py312 = sys.version_info >= (3, 12)
 is_py313 = sys.version_info >= (3, 13)
 is_py314 = sys.version_info >= (3, 14)
+is_py315 = sys.version_info >= (3, 15)
 
 is_win = sys.platform.startswith('win')
 is_win_10 = is_win and (platform.win32_ver()[0] == '10')
@@ -594,9 +595,6 @@ PY3_BASE_MODULES = {
     'posixpath',  # dependency of os.path
     're',
     'reprlib',
-    'sre_compile',
-    'sre_constants',
-    'sre_parse',
     'stat',  # dependency of os.path
     'traceback',  # for startup errors
     'types',
@@ -610,6 +608,11 @@ if not is_py310:
 if is_android and is_py313:
     PY3_BASE_MODULES.add('_android_support')
     PY3_BASE_MODULES.add('threading')  # dependency of _android_support
+
+if not is_py315:
+    PY3_BASE_MODULES.add('sre_compile')
+    PY3_BASE_MODULES.add('sre_constants')
+    PY3_BASE_MODULES.add('sre_parse')
 
 # Object types of Pure Python modules in modulegraph dependency graph.
 # Pure Python modules have code object (attribute co_code).

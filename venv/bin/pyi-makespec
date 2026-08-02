@@ -1,6 +1,4 @@
-#!/bin/sh
-'''exec' "/home/domore100/Documents/Hot/exe files/tasklight/V2/sourse/venv/bin/python3" "$0" "$@"
-' '''
+#!/home/domore100/Documents/Hot/programs/tasklight/V2/sourse/venv/bin/python3
 # -*- coding: utf-8 -*-
 import re
 import sys
