@@ -14,6 +14,15 @@ def start_recording():
     state.events       = []
     state.is_recording = True
 
+    # record starting mouse position as first event
+    # so playback always returns to the start on each loop
+    try:
+        import pyautogui
+        sx, sy = pyautogui.position()
+        state.start_pos = (sx, sy)
+    except:
+        state.start_pos = None
+
     def on_move(x, y):
         if state.is_recording:
             state.events.append(("move", x, y, time.time()))

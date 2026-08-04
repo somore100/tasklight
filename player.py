@@ -2,12 +2,22 @@ import time, state, settings, humanizer, duplicator, injector
 from duplicator import dup_state
 
 def _sleep(secs):
-    """Interruptible sleep — checks stop_flag every 50ms."""
+    """Interruptible sleep — wakes every 20ms to check stop_flag."""
+    if secs <= 0: return
     end = time.perf_counter() + secs
     while time.perf_counter() < end:
         if state.stop_flag or state.quit_flag: return
-        chunk = min(0.05, end - time.perf_counter())
+        chunk = min(0.02, end - time.perf_counter())
         if chunk > 0: time.sleep(chunk)
+
+def _return_to_start():
+    """Move mouse back to recording start position."""
+    if state.start_pos:
+        try:
+            sx, sy = state.start_pos
+            injector.move(sx, sy)
+            time.sleep(0.05)
+        except: pass
 
 def play(speed=1.0, loop=1):
     if not state.events: return
@@ -16,7 +26,7 @@ def play(speed=1.0, loop=1):
 
     state.is_playing = True
     state.stop_flag  = False
-    speed = max(float(speed), 0.01)
+    speed     = max(float(speed), 0.01)
     infinite  = (loop == 0)
     run_count = 0
 
@@ -31,7 +41,13 @@ def play(speed=1.0, loop=1):
     while True:
         if state.stop_flag or state.quit_flag: break
         if not infinite and run_count >= loop: break
+
         run_count += 1
+
+        # ── return to start position at beginning of each loop ──
+        _return_to_start()
+        if state.stop_flag or state.quit_flag: break
+
         if not events: break
         base_time = events[0][-1]
 
@@ -40,7 +56,8 @@ def play(speed=1.0, loop=1):
 
             delay = (event[-1] - base_time) / speed
             base_time = event[-1]
-            if delay > 0: _sleep(delay)      # interruptible!
+            if delay > 0:
+                _sleep(delay)
 
             if state.stop_flag or state.quit_flag: break
 
@@ -55,20 +72,22 @@ def play(speed=1.0, loop=1):
 
                 elif kind == "click":
                     _, x, y, button, pressed, _ = event
+                    btn = button if isinstance(button, str) else "left"
                     if pressed:
-                        btn = button if isinstance(button, str) else "left"
                         if do_jitter: x, y = humanizer.addon_jitter(x, y)
                         if do_clicker:
                             now = time.time()
                             gap = humanizer.cps_interval()
                             elapsed = now - last_click_t
                             if elapsed < gap: _sleep(gap - elapsed)
+                            if state.stop_flag: break
                             humanizer.addon_click(x, y, button=btn, use_jitter=False)
                             last_click_t = time.time()
                         else:
                             injector.mouse_down(x, y, btn)
                             _sleep(0.05)
-                            injector.mouse_up(x, y, btn)
+                            if not (state.stop_flag or state.quit_flag):
+                                injector.mouse_up(x, y, btn)
 
                         if do_dup and not (state.stop_flag or state.quit_flag):
                             gap_ms = 80
@@ -92,7 +111,10 @@ def play(speed=1.0, loop=1):
             except Exception:
                 pass
 
-    # release any held keys on stop
-    injector.close()
-    injector.setup()
+    # always release held keys and reinit on stop
+    try:
+        injector.close()
+        injector.setup()
+    except: pass
+
     state.is_playing = False

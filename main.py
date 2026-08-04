@@ -114,7 +114,17 @@ def start_playback():
     threading.Thread(target=_run,daemon=True).start()
 
 def stop_all():
-    state.stop_flag=state.is_recording=state.is_playing=False
+    state.stop_flag    = True
+    state.is_recording = False
+    state.is_playing   = False
+    # give threads a moment to see the flag, then force-reinit injector
+    # so any held keys get released
+    import threading
+    def _force_stop():
+        time.sleep(0.1)
+        try: injector.close(); injector.setup()
+        except: pass
+    threading.Thread(target=_force_stop, daemon=True).start()
     set_status("stopped")
 
 def _sf(v,d=1.0):
@@ -160,6 +170,17 @@ def _push_settings():
 # ── hotkey listener ───────────────────────────────────────────────────────────
 def _on_press(key):
     if _is_mod(key): _mods.add(_kn(key)); return
+
+    # if we're capturing a keybind, let the capture listener handle it
+    # but still allow stop (F8 default) as emergency escape from capture
+    if '_kb_capturing' in dir() and _kb_capturing[0]:
+        # only allow stop hotkey to escape capture mode
+        if _matches(settings.get("hk_stop"), key):
+            _kb_capturing[0] = None
+            _kb_held_mods.clear()
+            root.after(0, stop_all)
+        return   # block all other hotkeys during capture
+
     acts={
         "hk_quit":emergency_quit,"hk_record":toggle_record,
         "hk_play":start_playback,"hk_stop":stop_all,
@@ -1457,42 +1478,45 @@ sec_kb=Section(_inner,"Keybinds","sec_keybinds")
 kbb=sec_kb.body
 Wl(kbb,"Supports: f6  ctrl+alt+p  j  etc.",ck="fg3").pack(fill="x",pady=(0,4))
 _KB_DEFS=[
-    ("hk_quit","Quit"),("hk_record","Record"),("hk_play","Play"),("hk_stop","Stop"),
+    ("hk_quit","Quit  ⚠"),("hk_record","Record"),("hk_play","Play"),("hk_stop","Stop"),
     ("hk_jitter_solo","Jitter solo"),("hk_clicker_solo","Clicker solo"),
     ("hk_net_blocker","Packet blocker"),
     ("hk_dup_solo","Click duplicator solo"),
 ]
 _kb_vars={}
-_kb_buttons={}   # key → capture button widget
-_kb_capturing=[None]  # [key being captured] or [None]
+_kb_buttons={}
+_kb_capturing=[None]
 _kb_held_mods=set()
+_kb_capture_hint=None  # label showing "press Stop to cancel"
 
 def _kb_on_capture_press(key):
-    """Called by pynput during keybind capture."""
-    from pynput.keyboard import Key
-    name = ""
+    name=""
     try:
         if hasattr(key,"char") and key.char: name=key.char.lower()
         else: name=key.name.lower()
     except: return
 
-    # track modifiers
     mods={"ctrl","shift","alt","cmd","super"}
     if any(m in name for m in mods):
         _kb_held_mods.add(name.replace("left","").replace("right","").strip("_"))
         return
 
-    # build combo string
     parts=sorted(_kb_held_mods)+[name]
     combo="+".join(parts)
-
     capturing=_kb_capturing[0]
+
     if capturing:
-        _kb_vars[capturing].set(combo)
-        _kb_buttons[capturing].config(text=combo,fg=T("accent"))
+        # warn if assigning quit key — don't block it, just warn
+        if capturing == "hk_quit":
+            _kb_vars[capturing].set(combo)
+            _kb_buttons[capturing].config(text=f"{combo}  ⚠ takes effect after Apply",fg=T("orange"))
+        else:
+            _kb_vars[capturing].set(combo)
+            _kb_buttons[capturing].config(text=combo,fg=T("accent"))
         _kb_capturing[0]=None
         _kb_held_mods.clear()
-        # stop capture listener
+        if _kb_capture_hint:
+            _kb_capture_hint.config(text="")
         return False
 
 def _kb_on_capture_release(key):
@@ -1512,14 +1536,15 @@ _kb_capture_listener=None
 
 def _start_capture(key):
     global _kb_capture_listener
-    if _kb_capturing[0]:   # already capturing another — cancel it
+    if _kb_capturing[0]:
         prev=_kb_capturing[0]
         _kb_buttons[prev].config(text=_kb_vars[prev].get() or "...",fg=T("fg2"))
     _kb_capturing[0]=key
     _kb_held_mods.clear()
     _kb_buttons[key].config(text="[ press keys… ]",fg=T("orange"))
+    if _kb_capture_hint:
+        _kb_capture_hint.config(text="Press Stop key to cancel capture")
 
-    # stop old listener
     if _kb_capture_listener:
         try: _kb_capture_listener.stop()
         except: pass
@@ -1532,7 +1557,10 @@ def _start_capture(key):
     _kb_capture_listener.start()
 
 Wl(kbb,"Click a button, then press your desired key or combo:",ck="fg3",sz=8
-   ).pack(fill="x",pady=(0,4))
+   ).pack(fill="x",pady=(0,2))
+_kb_capture_hint=tk.Label(kbb,text="",bg=T("bg"),fg=T("orange"),
+                           font=("Helvetica",8),anchor="w")
+_reg(_kb_capture_hint,"bg","bg"); _kb_capture_hint.pack(fill="x",pady=(0,4))
 
 for key,label in _KB_DEFS:
     row=Wf(kbb); row.pack(fill="x",pady=2)
@@ -1551,12 +1579,23 @@ for key,label in _KB_DEFS:
     _kb_buttons[key]=btn
 
 def _apply_kb():
-    if _kb_capturing[0]:   # cancel any active capture
+    # cancel any in-progress capture first
+    if _kb_capturing[0]:
+        prev=_kb_capturing[0]
+        _kb_buttons[prev].config(text=_kb_vars[prev].get() or "...",fg=T("fg2"))
         _kb_capturing[0]=None
+        _kb_held_mods.clear()
+        if _kb_capture_hint: _kb_capture_hint.config(text="")
+    # save all keybinds
     for k,v in _kb_vars.items():
         val=v.get().strip().lower()
+        # strip the warning suffix if present
+        val=val.split("  ")[0]
         if val: settings.set(k,val)
-    set_status("idle","keybinds saved")
+    # update button labels to clean display
+    for k,btn in _kb_buttons.items():
+        btn.config(text=settings.get(k) or "...",fg=T("fg2"))
+    set_status("idle","keybinds saved — restart hotkeys take effect now")
 
 Wb(kbb,"Apply keybinds",_apply_kb,pady=4).pack(pady=(6,2),anchor="w")
 Wsep(_inner)

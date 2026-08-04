@@ -6,3 +6,4 @@ jitter_solo_active  = False
 clicker_solo_active = False
 events              = []
 current_preset_name = ""
+start_pos = None
