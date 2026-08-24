@@ -1,9 +1,4 @@
 
----
-
-# `tasklight/README.md`
-
-```md
 # TaskLight
 
 A cross-platform macro automation tool inspired by classic tools like TinyTask, but built with Linux support in mind.
@@ -66,18 +61,21 @@ Roadmap
 ## Installation
 
 Clone:
-
-```bash
+```
+bash
 git clone <repository-url>
 cd tasklight
-
+```
 Install dependencies:
-
+```
 pip install -r requirements.txt
-
+```
 Run:
+```
+python main.py
+```
 
-python main.py```
+
 
 <img width="1358" height="697" alt="tasklight 2026-08-24 18-42-38" src="https://github.com/user-attachments/assets/4587b1ff-2e74-4bed-abb9-0483a6269ed6" />
 <img width="1358" height="697" alt="tasklight 2026-08-24 18-42-25" src="https://github.com/user-attachments/assets/c9e2e92e-0d7f-4763-acd1-2fa443cb04b5" />
