@@ -24,8 +24,11 @@ def play(speed=1.0, loop=1):
     events = list(state.events)
     if not events: return
 
+    # if stop was pressed before we even started, bail immediately
+    if state.stop_flag or state.quit_flag: return
+
     state.is_playing = True
-    state.stop_flag  = False
+    state.stop_flag  = False   # clear only after the check above
     speed     = max(float(speed), 0.01)
     infinite  = (loop == 0)
     run_count = 0
@@ -111,10 +114,8 @@ def play(speed=1.0, loop=1):
             except Exception:
                 pass
 
-    # always release held keys and reinit on stop
-    try:
-        injector.close()
-        injector.setup()
+    # release all held keys
+    try: injector.release_all()
     except: pass
 
     state.is_playing = False

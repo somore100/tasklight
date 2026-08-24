@@ -117,14 +117,13 @@ def stop_all():
     state.stop_flag    = True
     state.is_recording = False
     state.is_playing   = False
-    # give threads a moment to see the flag, then force-reinit injector
-    # so any held keys get released
+    # release held keys after a short delay
     import threading
-    def _force_stop():
-        time.sleep(0.1)
-        try: injector.close(); injector.setup()
+    def _release():
+        time.sleep(0.15)
+        try: injector.release_all()
         except: pass
-    threading.Thread(target=_force_stop, daemon=True).start()
+    threading.Thread(target=_release, daemon=True).start()
     set_status("stopped")
 
 def _sf(v,d=1.0):
@@ -1517,6 +1516,13 @@ def _kb_on_capture_press(key):
         _kb_held_mods.clear()
         if _kb_capture_hint:
             _kb_capture_hint.config(text="")
+        # stop listener from within its own callback safely
+        global _kb_capture_listener
+        if _kb_capture_listener:
+            thr=_kb_capture_listener
+            _kb_capture_listener=None
+            import threading
+            threading.Thread(target=thr.stop, daemon=True).start()
         return False
 
 def _kb_on_capture_release(key):
