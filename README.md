@@ -44,11 +44,10 @@ Session switching is included for compatibility between different environments.
 
 ## Current Status
 
-🟡 In development
+🟡 Close to finish-BETA
 
 Main goals:
-- Improve reliability
-- Expand customization
+- better realability
 - Improve Wayland compatibility
 
 Roadmap
