@@ -1,4 +1,4 @@
-#!/home/domore100/Documents/Hot/programs/tasklight/V2/sourse/venv/bin/python3
+#!/home/domore100/Documents/Hot/programs/tasklight/V3/venv/bin/python3.12
 # -*- coding: utf-8 -*-
 import re
 import sys

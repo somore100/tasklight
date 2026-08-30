@@ -1,12 +1,23 @@
-pip install pynput pyautogui
-That's genuinely all you need. Both are pure Python, no system libs required on Linux... except one thing 
-— pyautogui on Linux needs a display backend:
+Run ./setup_venv.sh (or: pip install -r requirements.txt) to install everything.
 
-And if you're on Wayland (Pop!_OS 22.04+ defaults to it), pynput and pyautogui both need X11 compatibility layer:
-bash# check if you're on Wayland or X11
-echo $XDG_SESSION_TYPE
+pynput / pyautogui — used for hotkey capture in the UI, mouse movement/clicks,
+and the pynput fallback hotkey backend on non-Linux platforms.
 
-If it says wayland, run the app like this:
-bashDISPLAY=:0 python3 main.py
+evdev — used on Linux for both keyboard *injection* (injector.py, via
+uinput) and global hotkey *listening* (hotkeys.py). This is kernel-level
+input, so it works identically on X11, on Wayland (any compositor), and
+inside fullscreen games — unlike pynput's X11-only global listener, which
+misses keys pressed while a native Wayland window has focus.
 
-Or force X11 session in Pop!_OS — on the login screen, click the gear icon bottom-right and pick GNOME on Xorg.
+For evdev to work you need read access to /dev/input/event* and write
+access to /dev/uinput — normally granted by being in the "input" group.
+See the "Linux permissions" section in BUILD_README.md for the exact
+commands. If that access isn't available, TaskLight automatically falls
+back to the pynput/X11 backend for hotkeys (shown in the app's Keybinds
+section), which still works fine on a plain X11 session.
+
+Note: as of Fedora 42+ (GNOME 49 / Fedora 43), Fedora's GNOME edition no
+longer ships an X11 session at all — "GNOME on Xorg" can't be selected
+from the login screen and isn't installable. On those systems the evdev
+backend above isn't optional workaround advice, it's the only backend
+that will reliably see your hotkeys.

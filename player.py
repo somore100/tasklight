@@ -78,7 +78,12 @@ def play(speed=1.0, loop=1):
                     btn = button if isinstance(button, str) else "left"
                     if pressed:
                         if do_jitter: x, y = humanizer.addon_jitter(x, y)
-                        if do_clicker:
+
+                        if state.ghost_mode_active:
+                            # ghost mode: move to the click position but
+                            # never actually press the mouse button
+                            injector.move(x, y)
+                        elif do_clicker:
                             now = time.time()
                             gap = humanizer.cps_interval()
                             elapsed = now - last_click_t
@@ -92,7 +97,7 @@ def play(speed=1.0, loop=1):
                             if not (state.stop_flag or state.quit_flag):
                                 injector.mouse_up(x, y, btn)
 
-                        if do_dup and not (state.stop_flag or state.quit_flag):
+                        if do_dup and not state.ghost_mode_active and not (state.stop_flag or state.quit_flag):
                             gap_ms = 80
                             if i + 1 < len(events):
                                 next_t = events[i+1][-1]

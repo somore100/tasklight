@@ -1,0 +1,12 @@
+# TaskLight — Python dependencies
+# Install into a venv: see setup_venv.sh, or manually:
+#   python3 -m venv venv && source venv/bin/activate && pip install -r requirements.txt
+
+pynput==1.7.7
+pyautogui==0.9.54
+python-xlib==0.33      # pyautogui's X11 backend (Linux)
+evdev==1.7.1; sys_platform == "linux"   # Linux only — kernel-level keyboard inject/listen (hotkeys.py, injector.py)
+psutil==6.1.0
+Pillow==11.0.0
+mss==9.0.2
+pyinstaller==6.11.1     # only needed for building the AppImage/exe, not for running from source

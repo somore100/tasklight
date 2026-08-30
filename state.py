@@ -7,3 +7,4 @@ clicker_solo_active = False
 events              = []
 current_preset_name = ""
 start_pos = None
+ghost_mode_active   = False

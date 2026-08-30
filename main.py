@@ -1,17 +1,17 @@
 """TaskLight V5 — main.py"""
 import tkinter as tk
 from tkinter import ttk, filedialog, messagebox
-import threading, os, sys
-import settings, state, recorder, player, humanizer, presets, network, fps, duplicator, sysmon, injector, session_switch
+import threading, os, sys, time
+import settings, state, config, recorder, player, humanizer, presets, network, fps, duplicator, sysmon, injector, session_switch, hotkeys
 from network import net_state as _ns
 from sysmon import sys_state as _ss
 from fps import fps_state as _fs2
 from duplicator import dup_state as _ds
-from pynput import keyboard as kb
 
 # ── boot ──────────────────────────────────────────────────────────────────────
 settings.load()
 injector.setup()   # detect evdev/uinput or fall back to pyautogui
+state.ghost_mode_active = bool(settings.get("ghost_mode"))
 
 # ── theme ─────────────────────────────────────────────────────────────────────
 THEMES = {
@@ -54,13 +54,12 @@ def toggle_theme():
     theme_btn.config(text="☀" if settings.get("theme")=="dark" else "☾")
 
 # ── hotkeys ───────────────────────────────────────────────────────────────────
+# GlobalListener (hotkeys.py) delivers already-normalized lowercase key-name
+# strings ("a", "f6", "ctrl", "shift", ...) regardless of backend, so this
+# code never has to know whether evdev or pynput is behind it.
 _mods = set()
 _MOD  = {"ctrl","shift","alt","cmd","super"}
-def _kn(key):
-    try:
-        if hasattr(key,"char") and key.char: return key.char.lower()
-        return key.name.lower()
-    except: return ""
+def _kn(key): return key.lower() if isinstance(key,str) else ""
 def _is_mod(k): return any(m in _kn(k) for m in _MOD)
 def _cur_mods(): return frozenset(m for m in _MOD if any(m in p for p in _mods))
 def _parse(hk):
@@ -69,7 +68,9 @@ def _parse(hk):
     keys=[p for p in parts if p not in _MOD]
     return mods, keys[-1] if keys else ""
 def _matches(hk,key):
+    if not hk: return False   # empty keybind = disabled (see "Clear all keybinds")
     mods,main=_parse(hk)
+    if not main: return False
     return _cur_mods()==mods and _kn(key)==main
 
 # ── QUIT (always first) ───────────────────────────────────────────────────────
@@ -118,7 +119,6 @@ def stop_all():
     state.is_recording = False
     state.is_playing   = False
     # release held keys after a short delay
-    import threading
     def _release():
         time.sleep(0.15)
         try: injector.release_all()
@@ -172,7 +172,9 @@ def _on_press(key):
 
     # if we're capturing a keybind, let the capture listener handle it
     # but still allow stop (F8 default) as emergency escape from capture
-    if '_kb_capturing' in dir() and _kb_capturing[0]:
+    try: capturing = _kb_capturing[0]
+    except NameError: capturing = None
+    if capturing:
         # only allow stop hotkey to escape capture mode
         if _matches(settings.get("hk_stop"), key):
             _kb_capturing[0] = None
@@ -187,6 +189,7 @@ def _on_press(key):
         "hk_clicker_solo":lambda:(_clicker_hk()),
         "hk_net_blocker":lambda:(_blocker_hk()),
         "hk_dup_solo":lambda:(_dup_hk()),
+        "hk_ghost":lambda:(_ghost_hk()),
     }
     for hk,fn in acts.items():
         if _matches(settings.get(hk),key):
@@ -195,12 +198,19 @@ def _on_release(key): _mods.discard(_kn(key))
 def _jitter_hk():  humanizer.toggle_jitter_solo();  _refresh_mini()
 def _clicker_hk(): humanizer.toggle_clicker_solo(); _refresh_mini()
 def _dup_hk():     duplicator.toggle_solo();         _refresh_mini()
+def toggle_ghost_mode():
+    state.ghost_mode_active = not state.ghost_mode_active
+    settings.set("ghost_mode", state.ghost_mode_active)
+    try: ghost_var.set(state.ghost_mode_active)
+    except NameError: pass
+    _refresh_mini()
+def _ghost_hk(): toggle_ghost_mode()
 def _blocker_hk():
     iface=_iface_var.get()
     if iface: network.toggle_blocker(iface); _refresh_mini(); _refresh_blocker_ui()
 
-_hkl=kb.Listener(on_press=_on_press,on_release=_on_release)
-_hkl.daemon=True; _hkl.start()
+_hkl=hotkeys.GlobalListener(on_press=_on_press,on_release=_on_release)
+_hkl.start()
 
 # ── root ──────────────────────────────────────────────────────────────────────
 root=tk.Tk()
@@ -292,12 +302,12 @@ class Section:
                      cursor="hand2",bg=T("bg"),fg=T("fg3"))
         _reg(lbl,"bg","bg");_reg(lbl,"fg","fg3"); lbl.pack(side="left")
         self.body=Wf(parent)
-        if self._open: self.body.pack(fill="x",padx=padx,pady=(1,3))
+        if self._open: self.body.pack(fill="x",padx=padx,pady=(1,3),after=self.hdr)
         for w in (self.hdr,self._arr,lbl): w.bind("<Button-1>",self._toggle)
     def _toggle(self,_=None):
         self._open=not self._open; settings.set(self._key,self._open)
         if self._open:
-            self.body.pack(fill="x",padx=self._px,pady=(1,3)); self._arr.config(text="▼")
+            self.body.pack(fill="x",padx=self._px,pady=(1,3),after=self.hdr); self._arr.config(text="▼")
         else:
             self.body.pack_forget(); self._arr.config(text="▶")
 
@@ -356,7 +366,7 @@ sys_mini_lbl.pack(fill="x",padx=12,pady=(0,3))
 _mini_labels={}
 for key,text,col in [
     ("jitter","◈ Jitter","green"),("clicker","◈ Clicker","green"),
-    ("dup","◈ Dup","green"),
+    ("dup","◈ Dup","green"),("ghost","👻 Ghost","accent"),
     ("blocker","⛔ Blocked","red"),("ping","◎ --","blue"),("fps",None,"green")]:
     lbl=tk.Label(mini_row,text="",font=("Helvetica",8),bg=T("bg"),fg=T(col))
     _reg(lbl,"bg","bg");_reg(lbl,"fg",col)
@@ -368,6 +378,7 @@ def _refresh_mini():
     if state.jitter_solo_active:   items.append((_mini_labels["jitter"],"◈ Jitter"))
     if state.clicker_solo_active:  items.append((_mini_labels["clicker"],"◈ Clicker"))
     if _ds.solo_active:            items.append((_mini_labels["dup"],"◈ Dup"))
+    if state.ghost_mode_active:    items.append((_mini_labels["ghost"],"👻 Ghost"))
     if _ns.blocker_active:         items.append((_mini_labels["blocker"],"⛔ Blocked"))
     if _ns.monitor_active and show_mini_ping_var.get():
         rtt=_ns.ping_current
@@ -459,6 +470,15 @@ hb=sec_hm.body
 human_var=tk.BooleanVar(value=settings.get("human_enabled"))
 ht=Wf(hb); ht.pack(fill="x",pady=(0,6))
 Wc(ht,"Enable human mode",human_var,sz=10).pack(side="left")
+
+ghost_hk_disp=(settings.get("hk_ghost") or "no key").upper()
+ghost_var=tk.BooleanVar(value=state.ghost_mode_active)
+def _ghost_toggle_from_ui():
+    state.ghost_mode_active = ghost_var.get()
+    settings.set("ghost_mode", state.ghost_mode_active)
+    _refresh_mini()
+Wc(ht,f"👻 Ghost mode [{ghost_hk_disp}] (clicks suppressed)",ghost_var,
+   cmd=_ghost_toggle_from_ui,sz=10).pack(side="left",padx=(12,0))
 
 def _mf(p):
     f=tk.Frame(p,bg=T("bg2"),highlightthickness=1,highlightbackground=T("bg3"))
@@ -567,7 +587,7 @@ def _build_clicker(p):
     adv_frame=tk.Frame(f,bg=T("bg2")); _reg(adv_frame,"bg","bg2")
 
     def _tog_adv():
-        if adv_var.get(): adv_frame.pack(fill="x",padx=6,pady=1)
+        if adv_var.get(): adv_frame.pack(fill="x",padx=6,pady=1,after=adv_chk)
         else: adv_frame.pack_forget()
 
     adv_chk=tk.Checkbutton(f,text="Advanced (CPS clamp)",variable=adv_var,command=_tog_adv,
@@ -1475,29 +1495,46 @@ Wsep(_inner)
 # ══════════════════════════════════════════════════════════════════════════════
 sec_kb=Section(_inner,"Keybinds","sec_keybinds")
 kbb=sec_kb.body
-Wl(kbb,"Supports: f6  ctrl+alt+p  j  etc.",ck="fg3").pack(fill="x",pady=(0,4))
+Wl(kbb,"Supports: f6  ctrl+alt+p  j  num5  numplus  etc.",ck="fg3").pack(fill="x",pady=(0,4))
+
+def _backend_label():
+    if hotkeys.BACKEND=="evdev":
+        return "⌨ Hotkey backend: evdev (kernel-level — works on X11 and Wayland)"
+    return "⌨ Hotkey backend: pynput/X11 (won't fire while a native Wayland app is focused)"
+
+_backend_lbl=tk.Label(kbb,text=_backend_label(),bg=T("bg"),
+                       fg=T("fg3") if hotkeys.BACKEND=="evdev" else T("orange"),
+                       font=("Helvetica",8),anchor="w",justify="left",wraplength=280)
+_reg(_backend_lbl,"bg","bg")
+_reg(_backend_lbl,"fg","fg3" if hotkeys.BACKEND=="evdev" else "orange")
+_backend_lbl.pack(fill="x",pady=(0,2))
+if hotkeys.BACKEND_WARNING:
+    _backend_warn_lbl=tk.Label(kbb,text=hotkeys.BACKEND_WARNING,bg=T("bg"),fg=T("orange"),
+             font=("Helvetica",8),anchor="w",justify="left",wraplength=280)
+    _reg(_backend_warn_lbl,"bg","bg"); _reg(_backend_warn_lbl,"fg","orange")
+    _backend_warn_lbl.pack(fill="x",pady=(0,4))
+
 _KB_DEFS=[
     ("hk_quit","Quit  ⚠"),("hk_record","Record"),("hk_play","Play"),("hk_stop","Stop"),
     ("hk_jitter_solo","Jitter solo"),("hk_clicker_solo","Clicker solo"),
     ("hk_net_blocker","Packet blocker"),
     ("hk_dup_solo","Click duplicator solo"),
+    ("hk_ghost","Ghost mode (click-through)"),
 ]
 _kb_vars={}
 _kb_buttons={}
 _kb_capturing=[None]
 _kb_held_mods=set()
 _kb_capture_hint=None  # label showing "press Stop to cancel"
+_kb_cancel_btn=None    # button shown during capture to cancel without a hotkey
 
 def _kb_on_capture_press(key):
-    name=""
-    try:
-        if hasattr(key,"char") and key.char: name=key.char.lower()
-        else: name=key.name.lower()
-    except: return
+    # key arrives already normalized (lowercase string) from hotkeys.GlobalListener
+    name = key if isinstance(key,str) else ""
+    if not name: return
 
-    mods={"ctrl","shift","alt","cmd","super"}
-    if any(m in name for m in mods):
-        _kb_held_mods.add(name.replace("left","").replace("right","").strip("_"))
+    if name in _MOD:
+        _kb_held_mods.add(name)
         return
 
     parts=sorted(_kb_held_mods)+[name]
@@ -1516,6 +1553,8 @@ def _kb_on_capture_press(key):
         _kb_held_mods.clear()
         if _kb_capture_hint:
             _kb_capture_hint.config(text="")
+        if _kb_cancel_btn:
+            _kb_cancel_btn.pack_forget()
         # stop listener from within its own callback safely
         global _kb_capture_listener
         if _kb_capture_listener:
@@ -1526,17 +1565,9 @@ def _kb_on_capture_press(key):
         return False
 
 def _kb_on_capture_release(key):
-    try:
-        name=""
-        try:
-            if hasattr(key,"char") and key.char: name=key.char.lower()
-            else: name=key.name.lower()
-        except: pass
-        mods={"ctrl","shift","alt","cmd","super"}
-        if any(m in name for m in mods):
-            clean=name.replace("left","").replace("right","").strip("_")
-            _kb_held_mods.discard(clean)
-    except: pass
+    name = key if isinstance(key,str) else ""
+    if name in _MOD:
+        _kb_held_mods.discard(name)
 
 _kb_capture_listener=None
 
@@ -1549,17 +1580,18 @@ def _start_capture(key):
     _kb_held_mods.clear()
     _kb_buttons[key].config(text="[ press keys… ]",fg=T("orange"))
     if _kb_capture_hint:
-        _kb_capture_hint.config(text="Press Stop key to cancel capture")
+        stop_hk = settings.get("hk_stop") or "no key set"
+        _kb_capture_hint.config(text=f"Press {stop_hk.upper()} to cancel capture, or click Cancel below")
+    if _kb_cancel_btn:
+        _kb_cancel_btn.pack(anchor="w", pady=(0,4), after=_kb_capture_hint)
 
     if _kb_capture_listener:
         try: _kb_capture_listener.stop()
         except: pass
 
-    from pynput import keyboard as _pkb
-    _kb_capture_listener=_pkb.Listener(
+    _kb_capture_listener=hotkeys.GlobalListener(
         on_press=_kb_on_capture_press,
         on_release=_kb_on_capture_release)
-    _kb_capture_listener.daemon=True
     _kb_capture_listener.start()
 
 Wl(kbb,"Click a button, then press your desired key or combo:",ck="fg3",sz=8
@@ -1567,6 +1599,29 @@ Wl(kbb,"Click a button, then press your desired key or combo:",ck="fg3",sz=8
 _kb_capture_hint=tk.Label(kbb,text="",bg=T("bg"),fg=T("orange"),
                            font=("Helvetica",8),anchor="w")
 _reg(_kb_capture_hint,"bg","bg"); _kb_capture_hint.pack(fill="x",pady=(0,4))
+
+def _cancel_capture():
+    """Cancel an in-progress keybind capture without needing to know the Stop key."""
+    global _kb_capture_listener
+    if _kb_capturing[0]:
+        prev=_kb_capturing[0]
+        _kb_buttons[prev].config(text=_kb_vars[prev].get() or "...",fg=T("fg2"))
+        _kb_capturing[0]=None
+        _kb_held_mods.clear()
+    if _kb_capture_hint: _kb_capture_hint.config(text="")
+    _kb_cancel_btn.pack_forget()
+    if _kb_capture_listener:
+        thr=_kb_capture_listener
+        _kb_capture_listener=None
+        import threading
+        threading.Thread(target=thr.stop, daemon=True).start()
+
+_kb_cancel_btn=tk.Button(kbb,text="✕ Cancel capture",command=_cancel_capture,
+                          bg=T("bg2"),fg=T("red"),activebackground=T("bg3"),
+                          relief="flat",font=("Helvetica",8,"bold"),cursor="hand2",
+                          padx=6,pady=2)
+_reg(_kb_cancel_btn,"bg","bg2");_reg(_kb_cancel_btn,"fg","red");_reg(_kb_cancel_btn,"activebackground","bg3")
+# not packed initially — only shown while a capture is in progress
 
 for key,label in _KB_DEFS:
     row=Wf(kbb); row.pack(fill="x",pady=2)
@@ -1584,6 +1639,18 @@ for key,label in _KB_DEFS:
     btn.pack(side="left",padx=(4,0))
     _kb_buttons[key]=btn
 
+    def _reset_one(k=key):
+        if _kb_capturing[0]==k: _cancel_capture()
+        default=config.DEFAULTS.get(k,"")
+        _kb_vars[k].set(default)
+        _kb_buttons[k].config(text=default or "...",fg=T("fg2"))
+    rst=tk.Button(row,text="↺",width=2,command=_reset_one,
+                  bg=T("bg2"),fg=T("fg3"),activebackground=T("bg3"),
+                  activeforeground=T("fg"),relief="flat",
+                  font=("Helvetica",9),cursor="hand2")
+    _reg(rst,"bg","bg2");_reg(rst,"fg","fg3");_reg(rst,"activebackground","bg3")
+    rst.pack(side="left",padx=(4,0))
+
 def _apply_kb():
     # cancel any in-progress capture first
     if _kb_capturing[0]:
@@ -1592,6 +1659,7 @@ def _apply_kb():
         _kb_capturing[0]=None
         _kb_held_mods.clear()
         if _kb_capture_hint: _kb_capture_hint.config(text="")
+        if _kb_cancel_btn: _kb_cancel_btn.pack_forget()
     # save all keybinds
     for k,v in _kb_vars.items():
         val=v.get().strip().lower()
@@ -1603,7 +1671,34 @@ def _apply_kb():
         btn.config(text=settings.get(k) or "...",fg=T("fg2"))
     set_status("idle","keybinds saved — restart hotkeys take effect now")
 
-Wb(kbb,"Apply keybinds",_apply_kb,pady=4).pack(pady=(6,2),anchor="w")
+def _reset_all_kb():
+    if not messagebox.askyesno("Reset keybinds",
+            "Reset every keybind to its factory default? Click Apply "
+            "afterward to save."):
+        return
+    _cancel_capture()
+    for k,var in _kb_vars.items():
+        default=config.DEFAULTS.get(k,"")
+        var.set(default)
+        _kb_buttons[k].config(text=default or "...",fg=T("fg2"))
+
+def _clear_all_kb():
+    if not messagebox.askyesno("Clear all keybinds",
+            "Reset every keybind to empty? This disables all hotkeys until "
+            "you set new ones and click Apply."):
+        return
+    _cancel_capture()
+    for k,var in _kb_vars.items():
+        var.set("")
+        _kb_buttons[k].config(text="...",fg=T("fg2"))
+    _apply_kb()
+
+kb_btn_row=Wf(kbb); kb_btn_row.pack(fill="x",pady=(6,2))
+Wb(kb_btn_row,"Apply keybinds",_apply_kb,pady=4).pack(side="left",anchor="w")
+Wb(kb_btn_row,"Reset all to defaults",_reset_all_kb,bg="bg2",fg="fg2",pady=4
+  ).pack(side="left",anchor="w",padx=(8,0))
+Wb(kb_btn_row,"Clear all keybinds",_clear_all_kb,bg="bg2",fg="red",pady=4
+  ).pack(side="left",anchor="w",padx=(8,0))
 Wsep(_inner)
 
 # ══════════════════════════════════════════════════════════════════════════════

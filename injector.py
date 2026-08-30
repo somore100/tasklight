@@ -65,6 +65,12 @@ _KEY_MAP = {
     "end":        "KEY_END",      "pageup":      "KEY_PAGEUP",
     "pagedown":   "KEY_PAGEDOWN", "capslock":    "KEY_CAPSLOCK",
     **{f"f{n}": f"KEY_F{n}" for n in range(1, 13)},
+    # numpad
+    **{f"num{n}": f"KEY_KP{n}" for n in range(10)},
+    "numplus":  "KEY_KPPLUS",   "numminus": "KEY_KPMINUS",
+    "numstar":  "KEY_KPASTERISK","numslash": "KEY_KPSLASH",
+    "numdot":   "KEY_KPDOT",    "numenter": "KEY_KPENTER",
+    "numlock":  "KEY_NUMLOCK",
     "key.space":    "KEY_SPACE",   "key.enter":   "KEY_ENTER",
     "key.tab":      "KEY_TAB",     "key.shift":   "KEY_LEFTSHIFT",
     "key.ctrl":     "KEY_LEFTCTRL","key.alt":     "KEY_LEFTALT",

@@ -8,6 +8,7 @@ DEFAULTS = {
     "hk_clicker_solo":  "f2",
     "hk_net_blocker":   "f3",
     "hk_dup_solo":      "f4",
+    "hk_ghost":         "",
 
     # playback
     "speed":    "1.0",
@@ -16,16 +17,16 @@ DEFAULTS = {
 
     # human mode
     "human_enabled":        False,
-    "delay_addon":          True,
+    "delay_addon":          False,
     "delay_min":            "0.01",
     "delay_max":            "0.05",
-    "smooth_addon":         True,
+    "smooth_addon":         False,
     "smooth_steps":         "8",
-    "jitter_addon":         True,
+    "jitter_addon":         False,
     "jitter_px":            "3",
     "jitter_max":           "8",
     "jitter_aggression":    "5",
-    "clicker_addon":        True,
+    "clicker_addon":        False,
     "clicker_cps_base":     "13",
     "clicker_cps_loss":     "3",
     "clicker_cps_min":      "5",
@@ -63,6 +64,9 @@ DEFAULTS = {
     "sysmon_show_temp":  False,
     "sysmon_show_mini":  True,
     "sysmon_show_cores": False,
+
+    # ghost mode (click-through / clicks suppressed during playback)
+    "ghost_mode": False,
 
     # UI
     "theme":          "dark",
