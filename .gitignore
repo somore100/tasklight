@@ -1,0 +1,13 @@
+# Python
+__pycache__/
+*.pyc
+
+# venv — never commit this, use setup_venv.sh + requirements.txt instead
+venv/
+
+# build output
+build/
+dist/
+AppDir/
+TaskLight-x86_64.AppImage
+TaskLight.exe

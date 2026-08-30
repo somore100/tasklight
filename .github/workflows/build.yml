@@ -7,166 +7,126 @@ on:
   workflow_dispatch:
 
 jobs:
-  # ── Linux AppImage ────────────────────────────────────────────────────────
   build-linux:
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: System deps
+      - name: Install system deps
         run: |
           sudo apt-get update
-          sudo apt-get install -y python3-tk libxtst-dev libx11-dev \
-            libxkbcommon-x11-0 libfuse2 fuse wget
-
-      - name: Python deps
-        run: pip install pyinstaller pynput pyautogui python-xlib psutil Pillow mss evdev
-
-      - name: PyInstaller
+          sudo apt-get install -y python3-tk python3-dev build-essential \
+            libxtst-dev libx11-dev libxkbcommon-x11-0 libfuse2 fuse wget
+      - name: Install Python deps
+        run: |
+          pip install -r requirements.txt
+      - name: Build with PyInstaller
         run: pyinstaller tasklight.spec --clean --noconfirm
 
       - name: Download appimagetool
         run: |
           wget -q https://github.com/AppImage/AppImageKit/releases/download/continuous/appimagetool-x86_64.AppImage
           chmod +x appimagetool-x86_64.AppImage
-
       - name: Build AppImage
         run: |
-          rm -rf AppDir
           mkdir -p AppDir/usr/bin AppDir/usr/share/applications \
-                   AppDir/usr/share/icons/hicolor/256x256/apps
+            AppDir/usr/share/icons/hicolor/256x256/apps
           cp dist/tasklight AppDir/usr/bin/tasklight
-
           cat > AppDir/tasklight.desktop << 'DESKTOP'
           [Desktop Entry]
           Name=TaskLight
-          Comment=Macro recorder and system tools
+          Comment=Macro recorder, humanizer and system tools
           Exec=tasklight
           Icon=tasklight
           Type=Application
           Categories=Utility;
           DESKTOP
-
           cp AppDir/tasklight.desktop AppDir/usr/share/applications/tasklight.desktop
-
-          # use logo.png from repo, fall back to generated icon
-          if [ -f logo.png ]; then
-            cp logo.png AppDir/tasklight.png
-            cp logo.png AppDir/usr/share/icons/hicolor/256x256/apps/tasklight.png
-          else
-            python3 -c "
+          python3 -c "
           try:
               from PIL import Image, ImageDraw
-              img = Image.new('RGBA',(256,256),(22,22,22,255))
+              img = Image.new('RGBA', (256,256), (22,22,22,255))
               d = ImageDraw.Draw(img)
-              d.ellipse([20,20,236,236],fill=(74,143,196,255))
-              d.text((72,88),'TL',fill='white')
-              img.save('logo.png')
+              d.ellipse([20,20,236,236], fill=(74,143,196,255))
+              d.text((72,88), 'TL', fill='white')
+              img.save('icon.png')
           except: pass
-            " || true
-            [ -f logo.png ] && \
-              cp logo.png AppDir/tasklight.png && \
-              cp logo.png AppDir/usr/share/icons/hicolor/256x256/apps/tasklight.png
-          fi
-
+          " || true
+          [ -f icon.png ] && \
+            cp icon.png AppDir/tasklight.png && \
+            cp icon.png AppDir/usr/share/icons/hicolor/256x256/apps/tasklight.png
           cat > AppDir/AppRun << 'APPRUN'
           #!/bin/bash
           HERE="$(dirname "$(readlink -f "$0")")"
           exec "$HERE/usr/bin/tasklight" "$@"
           APPRUN
           chmod +x AppDir/AppRun
-
-          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir TaskLight-x86_64.AppImage
-
-      - uses: actions/upload-artifact@v4
+          ARCH=x86_64 ./appimagetool-x86_64.AppImage AppDir \
+            TaskLight-x86_64.AppImage
+      - name: Upload AppImage
+        uses: actions/upload-artifact@v4
         with:
           name: TaskLight-Linux
           path: TaskLight-x86_64.AppImage
 
-  # ── Windows .exe ──────────────────────────────────────────────────────────
   build-windows:
     runs-on: windows-latest
     steps:
       - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
         with:
           python-version: '3.11'
 
-      - name: Python deps
-        run: pip install pyinstaller pynput pyautogui psutil Pillow
-
-      - name: PyInstaller
+      - name: Install Python deps
+        run: |
+          pip install -r requirements.txt
+      - name: Build with PyInstaller
         run: pyinstaller tasklight_windows.spec --clean --noconfirm
 
-      - uses: actions/upload-artifact@v4
+      - name: Upload exe
+        uses: actions/upload-artifact@v4
         with:
           name: TaskLight-Windows
           path: dist/TaskLight.exe
 
-  # ── macOS .app ────────────────────────────────────────────────────────────
-  build-macos:
-    runs-on: macos-latest
-    steps:
-      - uses: actions/checkout@v4
-      - uses: actions/setup-python@v5
-        with:
-          python-version: '3.11'
-
-      - name: Python deps
-        run: pip install pyinstaller pynput pyautogui psutil Pillow mss
-
-      - name: PyInstaller
-        run: pyinstaller tasklight_macos.spec --clean --noconfirm
-
-      - name: Zip .app
-        run: |
-          cd dist
-          zip -r TaskLight-macOS.zip TaskLight.app
-
-      - uses: actions/upload-artifact@v4
-        with:
-          name: TaskLight-macOS
-          path: dist/TaskLight-macOS.zip
-
-  # ── Release ───────────────────────────────────────────────────────────────
   release:
-    needs: [build-linux, build-windows, build-macos]
+    needs: [build-linux, build-windows]
     runs-on: ubuntu-latest
     if: startsWith(github.ref, 'refs/tags/')
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
-        with: { name: TaskLight-Linux }
-      - uses: actions/download-artifact@v4
-        with: { name: TaskLight-Windows }
-      - uses: actions/download-artifact@v4
-        with: { name: TaskLight-macOS }
+      - name: Download Linux artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TaskLight-Linux
 
-      - uses: softprops/action-gh-release@v2
+      - name: Download Windows artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: TaskLight-Windows
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
         with:
           files: |
             TaskLight-x86_64.AppImage
             TaskLight.exe
-            TaskLight-macOS.zip
           body: |
             ## TaskLight ${{ github.ref_name }}
-
-            | Platform | Download | Notes |
-            |----------|----------|-------|
-            | Linux | `TaskLight-x86_64.AppImage` | Any x86_64 distro |
-            | Windows | `TaskLight.exe` | No install needed |
-            | macOS | `TaskLight-macOS.zip` | Extract and run |
-
-            **Linux:**
+            **Linux**: `TaskLight-x86_64.AppImage` — run on any x86_64 Linux
             ```bash
             chmod +x TaskLight-x86_64.AppImage
             ./TaskLight-x86_64.AppImage
             ```
-            **Windows:** double-click `TaskLight.exe`. If blocked: More info → Run anyway.
-            **macOS:** unzip, right-click → Open (first time only for Gatekeeper).
+            **Windows**: `TaskLight.exe` — double-click, no install needed.
+            If blocked: More info → Run anyway.
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
