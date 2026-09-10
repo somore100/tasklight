@@ -1,19 +1,29 @@
-
 # TaskLight
 
-A cross-platform macro automation tool inspired by classic tools like TinyTask, but built with Linux support in mind.
+**A cross-platform macro automation tool** — inspired by classic tools like TinyTask, built with real Linux support in mind.
 
-TaskLight allows users to record actions, replay them, and automate repetitive tasks while providing additional customization features.
+![Status](https://img.shields.io/badge/status-beta-yellow)
+![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
+![License](https://img.shields.io/badge/license-MIT-green)
+
+Record keyboard and mouse actions, replay them, and automate repetitive tasks — with extra customization most macro tools don't offer.
+
+<p align="center">
+  <img width="49%" alt="TaskLight main window" src="https://github.com/user-attachments/assets/4587b1ff-2e74-4bed-abb9-0483a6269ed6" />
+  <img width="49%" alt="TaskLight macro editor" src="https://github.com/user-attachments/assets/c9e2e92e-0d7f-4763-acd1-2fa443cb04b5" />
+</p>
+<p align="center">
+  <img width="70%" alt="TaskLight system tools" src="https://github.com/user-attachments/assets/a44c1e7b-62b3-4dfe-a676-12d863c74014" />
+</p>
 
 ## Features
 
-### Macro Recording
+**Macro Recording**
 - Record keyboard and mouse actions
 - Replay recorded actions
 - Save and reuse macros
 
-### Automation Tools
-
+**Automation Tools**
 - Auto clicker
 - Click duplication
 - Custom keybinds
@@ -22,20 +32,17 @@ TaskLight allows users to record actions, replay them, and automate repetitive t
   - Jitter effects
   - Recorded movement adjustments
 
-### System Tools
-
+**System Tools**
 - FPS monitor
 - Ping monitor
 - Performance tweaks
 
 ## Linux Support
 
-Unlike many macro tools, TaskLight supports Linux.
+Unlike many macro tools, TaskLight supports Linux natively — not just as an afterthought.
 
-Best compatibility:
-- X11 sessions
-
-Session switching is included for compatibility between different environments.
+- **Best compatibility:** X11 sessions
+- **Session switching** included for compatibility across different environments
 
 ## Supported Platforms
 
@@ -44,40 +51,41 @@ Session switching is included for compatibility between different environments.
 
 ## Current Status
 
-🟡 Close to finish-BETA
+🟡 Close to finished — BETA
 
-Main goals:
-- better realability
-- Improve Wayland compatibility
+Main goals right now:
+- Better reliability
+- Improved Wayland compatibility
 
-Roadmap
- Better GUI
- More macro editing options
- Improved Linux compatibility
- Better profile management
- Export/import macro system
+## Roadmap
+
+- [ ] Better GUI
+- [ ] More macro editing options
+- [ ] Improved Linux compatibility
+- [ ] Better profile management
+- [ ] Export/import macro system
 
 ## Installation
 
-Clone:
-```
-bash
-git clone <repository-url>
+```bash
+git clone https://github.com/somore100/tasklight.git
 cd tasklight
 ```
+
 Install dependencies:
-```
+```bash
 pip install -r requirements.txt
 ```
+
 Run:
-```
+```bash
 python main.py
 ```
 
+## Contributing
 
+Issues and pull requests are welcome — Wayland compatibility and macro editing are the areas most in need of help right now.
 
-<img width="1358" height="697" alt="tasklight 2026-08-24 18-42-38" src="https://github.com/user-attachments/assets/4587b1ff-2e74-4bed-abb9-0483a6269ed6" />
-<img width="1358" height="697" alt="tasklight 2026-08-24 18-42-25" src="https://github.com/user-attachments/assets/c9e2e92e-0d7f-4763-acd1-2fa443cb04b5" />
-<img width="1361" height="737" alt="tasklight 2026-08-24 18-40-13" src="https://github.com/user-attachments/assets/a44c1e7b-62b3-4dfe-a676-12d863c74014" />
+## License
 
-
+MIT
