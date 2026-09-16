@@ -4,7 +4,6 @@
 
 ![Status](https://img.shields.io/badge/status-beta-yellow)
 ![Platform](https://img.shields.io/badge/platform-Windows%20%7C%20Linux-lightgrey)
-![License](https://img.shields.io/badge/license-MIT-green)
 
 Record keyboard and mouse actions, replay them, and automate repetitive tasks — with extra customization most macro tools don't offer.
 
