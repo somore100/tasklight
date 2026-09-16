@@ -88,4 +88,11 @@ Issues and pull requests are welcome — Wayland compatibility and macro editing
 
 ## License
 
-MIT
+This project is source-available software.
+
+You are free to view, study, modify, fork, and share the project for non-commercial purposes. Addons, plugins, extensions, and integrations are also permitted under the license terms.
+
+Commercial distribution of this project, or substantially derived versions of it, is not permitted without permission from the copyright holder.
+
+See the [LICENSE](LICENSE) file for the full terms.
+
