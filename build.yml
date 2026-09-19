@@ -20,10 +20,11 @@ jobs:
         run: |
           sudo apt-get update
           sudo apt-get install -y python3-tk libxtst-dev libx11-dev \
-            libxkbcommon-x11-0 libfuse2 fuse wget
+            libxkbcommon-x11-0 libfuse2 fuse wget \
+            python3-dev build-essential
 
       - name: Python deps
-        run: pip install pyinstaller pynput pyautogui python-xlib psutil Pillow mss evdev
+        run: pip install -r requirements.txt
 
       - name: PyInstaller
         run: pyinstaller tasklight.spec --clean --noconfirm
@@ -96,7 +97,7 @@ jobs:
           python-version: '3.11'
 
       - name: Python deps
-        run: pip install pyinstaller pynput pyautogui psutil Pillow
+        run: pip install -r requirements.txt
 
       - name: PyInstaller
         run: pyinstaller tasklight_windows.spec --clean --noconfirm
@@ -116,7 +117,7 @@ jobs:
           python-version: '3.11'
 
       - name: Python deps
-        run: pip install pyinstaller pynput pyautogui psutil Pillow mss
+        run: pip install -r requirements.txt
 
       - name: PyInstaller
         run: pyinstaller tasklight_macos.spec --clean --noconfirm

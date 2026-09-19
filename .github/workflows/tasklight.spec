@@ -18,11 +18,12 @@ a = Analysis(
         'pyautogui', 'tkinter', 'tkinter.ttk',
         'tkinter.filedialog', 'tkinter.messagebox',
         'psutil', 'PIL', 'PIL.ImageGrab',
-        'mss', 'evdev', 'session_switch', 'evdev', 'session_switch',
+        'mss', 'evdev', 'session_switch',
+        'backports', 'backports.tarfile',
     ],
     hookspath=[],
     runtime_hooks=[],
-    excludes=[],
+    excludes=['pkg_resources', 'setuptools', 'jaraco', '_distutils_hack'],
     cipher=block_cipher,
 )
 

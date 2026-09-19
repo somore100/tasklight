@@ -14,10 +14,11 @@ a = Analysis(
         'pyautogui', 'tkinter', 'tkinter.ttk',
         'tkinter.filedialog', 'tkinter.messagebox',
         'psutil', 'PIL', 'PIL.ImageGrab',
+        'backports', 'backports.tarfile',
     ],
     hookspath=[],
     runtime_hooks=[],
-    excludes=['Xlib', 'pynput._util.xorg'],
+    excludes=['Xlib', 'pynput._util.xorg', 'pkg_resources', 'setuptools', 'jaraco', '_distutils_hack'],
     cipher=block_cipher,
 )
 
