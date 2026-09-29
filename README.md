@@ -58,11 +58,11 @@ Main goals right now:
 
 ## Roadmap
 
-- [ ] Better GUI
-- [ ] More macro editing options
-- [ ] Improved Linux compatibility
+- [ ] Better Realability
+- [X] More macro editing options
+- [ ] Improved Linux compatibility(epacially wayland)
 - [ ] Better profile management
-- [ ] Export/import macro system
+- [X] Export/import macro system
 
 ## Installation
 
